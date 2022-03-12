@@ -1,0 +1,1311 @@
+---
+author: "Hill Modi"
+title: "Analysis of Categorical Data"
+subtitle: "Heart Failure Prediction"
+date: 26th September, 2020
+output:
+  html_document: 
+    code_folding: hide
+    fig_caption: yes
+    fig_height: 7
+    fig_width: 9
+    highlight: tango
+    keep_md: yes
+    number_sections: yes
+    theme: readable
+    toc: yes
+    toc_depth: 4
+  pdf_document: default
+  word_document: default
+  html_notebook: default
+  bibliography: ref.bib  
+  biblio-style: "apalike"
+  link-citations: true
+---
+
+
+```{r setup, include=FALSE}
+
+#include libraries
+
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(knitr)
+library(gridExtra)
+library(naniar)
+library(egg)
+library(janitor)
+library(ggcorrplot)
+library(plotly)
+library(GGally)
+library(factoextra)
+library(kableExtra)
+library(glmulti)
+library(plyr)
+
+
+knitr::opts_chunk$set(message = FALSE)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Data Source and Discription
+
+**Data Source**: Dataset from Davide Chicco, Giuseppe Jurman: â€œMachine learning can predict survival of patients with heart failure from serum creatinine and ejection fraction alone. BMC Medical Informatics and Decision Making 20, 16 (2020). [Data Source](https://www.kaggle.com/andrewmvd/heart-failure-clinical-data)
+
+
+
+Cardiovascular Diseases (CVDs) are being the top most reason of death worldwide, with approximate of 17.9 million lives in every tenure. It contribute whooping amount of 31% of world-deaths. 
+
+Even though, most of the CVDs would not occur if Individuals do physical activities, exercises, take healthy diets, keep distance with alcohol and Tabaco, large population of world still do everything mentioned above.    
+
+Individuals who are already diagnosed with CVDs or who are at high risk of CVDs - (We took into the account various risk factors such as High Blood Pressure, Diabetes, Hypertensions etc. ) need early recognition of Heart Failure, so management can take extreme care of them. 
+
+This dataset is consists of 12 features variables and 1 target variable, that has been describe in the following table. 
+
+**Table 1 - Description of Variables** 
+```{r}
+
+#Creating Table
+text_tbl <- data.frame(
+  Features = c("Age", 
+               "Anaemia", 
+               "Creatinine Phosphokinase",
+               "Diabetes",
+               "Ejection Fraction",
+               "High Blood Pressure",
+               "Platelets",
+               "Serum Creatinine",
+               "Serum Sodium","Sex",
+               "Smoking",
+               "Time",
+               "DEATH EVENT"
+               ),
+  Data_type = c("Numerical",
+                "Binary",
+                "Continuous",
+                "Binary",
+                "Numeric",
+                "Binary",
+                "Continuous",
+                "Continuous",
+                "Continuous",
+                "Binary",
+                "Binary",
+                "Numerical",
+                "Categorical"
+                ),
+  Units = c("Years",
+            "Unknown",
+            "mcg/L",
+            "Unknown",
+            "Percentage",
+            "Unknown",
+            "Kiloplatelets/mL",
+            "mg/dL",
+            "mEq/L",
+            "Unknown",
+            "Unknown",
+            "Days",
+            "Unknown"
+            ),
+  Description = c("Age",
+                  "Decrease of red blood cells or hemoglobin (1 = Yes, 0 = No)",
+                  "Level of the CPK enzyme in the blood",
+                  "If the patient has diabetes (1 = Yes, 0 = No)",
+                  "Percentage of blood leaving the heart at each contraction",
+                  "If the patient has hypertension (1 = Yes, 0 = No)",
+                  "Platelets in the blood",
+                  "Level of serum creatinine in the blood",
+                  "Level of serum sodium in the blood",
+                  "Woman or man (1 = Male, 0 = Female)",
+                  "If the patient smokes or not (1 = Yes, 0 = No)",
+                  "Follow-up period",
+                  "If the patient deceased during the follow-up period (1 = Yes, 0 = No)"
+                )
+)
+    
+
+kbl(text_tbl) %>%
+  kable_paper()
+```
+
+
+
+
+* Our target variable is DEATH-EVENT. While other variables are feature variables. 
+
+# Goals and Objectives
+> The aim of this report is to determine which factor contribute the most to mortality of individuals when he is diagnosed with CVDs, whether it is single factor such is sex or multiple factors such as having high blood pressure and diabetes.
+
+
+AI or Machine Learning model would be the great assistance to predict the death of Individuals with given risk factor and certain other values such as Level of Serum Sodium, Serum Creatinine in the blood etc.   
+
+
+# Data Cleaning and Preprocessing
+
+``` {r include=FALSE}
+#load the dataset
+
+df <- read_csv("ProjectGroups120_Data.csv")
+
+```
+## Heart Failure Datafrmae 
+``` {r}
+#display the dataset
+
+kbl(head(df)) %>%
+  kable_paper()
+```
+
+* There are 299 records with 12 feature variables and 1 target variable. Here are first 5 records.
+
+## Cheking for missing Values
+
+```{r}
+#Summary for missing values
+na<-miss_var_summary(df)
+
+kbl(na) %>%
+  kable_paper()
+
+```
+
+* From, above table, it is crystal clear evidence that there is not a single null value. However, there might be possible there are Typos, whitespace, outliers or impossible values. 
+
+* That we will check with summary of dataset.
+
+## Summary Statistics
+
+### Summary of Explanatory Variables
+
+```{r}
+#Factoring the Categorical Columns 
+df$anaemia_ <- factor(df$anaemia, 
+                      levels = c(1, 0),
+                      labels = c("Yes","No"),
+                      ordered = FALSE)
+
+df$diabetes_ <- factor(df$diabetes, 
+                       levels = c(1, 0),
+                       labels = c("Yes","No"),
+                       ordered = FALSE)
+
+df$high_blood_pressure_ <- factor(df$high_blood_pressure, 
+                                  levels = c(1, 0),
+                                  labels = c("Yes","No"),
+                                  ordered = FALSE)
+
+df$sex_ <- factor(df$sex, 
+                  levels = c(1, 0),
+                  labels = c("Male","Female"),
+                  ordered = FALSE)
+
+df$smoking_ <- factor(df$smoking, 
+                      levels = c(1, 0),
+                      labels = c("Yes","No"),
+                      ordered = FALSE)
+
+df$DEATH_EVENT_ <- factor(df$DEATH_EVENT, 
+                          levels = c(1, 0),
+                          labels = c("Yes","No"),
+                          ordered = FALSE)
+
+
+#creating new dataframe with explanatory columns
+df_explanatory <- data.frame("age" = df$age,
+                             "creatinine_phosphokinase" = df$creatinine_phosphokinase,
+                             "ejection_fraction" = df$ejection_fraction,
+                             "platelets"= df$platelets,
+                             "serum_creatinine"=df$serum_creatinine,
+                             "serum_sodium"=df$serum_sodium,
+                             "time"=df$time,
+                             "DEATH_EVENT"=df$DEATH_EVENT_
+)
+
+#creating new dataframe with catagorical columns
+df_categorical <- data.frame("anaemia" = df$anaemia_,
+                             "diabetes" = df$diabetes_,
+                             "high_blood_pressure" = df$high_blood_pressure_,
+                             "sex"= df$sex_,
+                             "smoking"=df$smoking_,
+                             "DEATH_EVENT"=df$DEATH_EVENT_
+)
+
+#Summary of explanatory datafrmae
+ex_sum<-summary(df_explanatory)
+kbl(ex_sum) %>%
+  kable_paper()
+
+```
+
+Table shows summary statistics of explanatory variables.
+
+
+* There is not any impossible values, typo or whitespace in the dataset.
+However, there are outliers in some of the columns, creatinine average value is 581.8 in mcg/L, while maximum value is 7861.0, which is considered as outlier.
+
+* In the same way, 850,000 kiloplatelets/mL maximum while, 263,358 kiloplatelets/mL is average platelets.
+
+* Same way, creatinine has also outliers.
+
+* Proof of all the outliers is depict in the boxplots as well.
+
+* However, removing the outliers is really depends on individuals, as in same cases, removind outliers means shrinking the data, and sometimes dataset will decrease its trustworthiness.
+
+* Ergo, I keep the dataset as it is.
+
+#### When Alive
+```{r}
+
+#Summary of Explanatory variables when alive
+
+sum_ex_alive<-summary(df_explanatory %>% filter(DEATH_EVENT=="No"))
+kbl(sum_ex_alive) %>%
+  kable_paper()
+
+```
+Here, is the Summary statistics of explanatory variable when individuals survive the heart attack.
+
+#### When Dead
+```{r}
+#Summary of explanatory variable when ded
+
+sum_ex_dead<-summary(df_explanatory %>% filter(DEATH_EVENT=="Yes"))
+kbl(sum_ex_alive) %>%
+  kable_paper()
+```
+Here, is the Summary statistics of explanatory variable when individuals did not survive the heart attack.
+
+### Summary of Categorical Variables
+```{r}
+#Summary of Categorical Dataframe
+
+cat_sum<-summary(df_categorical)
+kbl(cat_sum) %>%
+  kable_paper()
+
+```
+Here is the Summary Statistics of Categorical Variables.
+In which, it is depicted as there are 194 male, 105 individuals have high blood pressure, etc,
+
+#### When Alive
+```{r}
+#Summary of Catagorical variables when alive
+sum_cat_alive<-summary(df_categorical %>% filter(DEATH_EVENT=="No"))
+
+kbl(sum_cat_alive) %>%
+  kable_paper()
+```
+Here, is the Summary statistics of categorical variables when individuals survive the heart attack.
+
+
+#### When Dead
+```{r}
+#Summary of categorical variable when dead
+
+sum_cat_dead<-summary(df_categorical %>% filter(DEATH_EVENT=="Yes"))
+kbl(sum_cat_dead) %>%
+  kable_paper()
+```
+Here, is the Summary statistics of categorical variables when heart attack turned into death.
+
+# Data Exploration and Visualisation
+
+## Explanatory Variables
+### Density Plots of 1 variables and 2 Variables with Comparison
+
+**Age**
+```{r}
+# Change density plot fill colors by groups
+h1<-ggplot(df, aes(x=age)) +
+  geom_density(color="black", fill="skyblue", alpha=0.4)
+
+h2<-ggplot(df, aes(x=ejection_fraction)) +
+  geom_density(color="black", fill="skyblue", alpha=0.4)
+
+h3<-ggplot(df, aes(x=platelets)) +
+  geom_density(color="black", fill="skyblue", alpha=0.4)
+
+h4<-ggplot(df, aes(x=time)) +
+  geom_density(color="black", fill="skyblue", alpha=0.4)
+
+
+# density plots (2 variables)
+d1<-ggplot(df, aes(x=age, fill=DEATH_EVENT_)) +
+  geom_density(alpha=0.4)
+
+d2<-ggplot(df, aes(x=ejection_fraction, fill=DEATH_EVENT_)) +
+  geom_density(alpha=0.4) 
+
+d3<-ggplot(df, aes(x=platelets , fill=DEATH_EVENT_)) +
+  geom_density(alpha=0.4) 
+
+d4<-ggplot(df, aes(x=time , fill=DEATH_EVENT_)) +
+  geom_density(alpha=0.4) 
+
+gridExtra::grid.arrange(h1,d1)
+```
+
+From above graph, majority of population is aged near 70, while as the age increases, probability of heart attack turns into death in increases. 
+
+**Ejection Fraction**
+```{r}
+gridExtra::grid.arrange(h2,d2)
+
+```
+
+Most of people have 40% of blood leaving from hearh at each contraction, there is relationship between ejection fraction and heart attack turns into death as while ejectin fraction shows low percentage, probability of death increase and vice versa. 
+
+
+**Platelets**
+```{r}
+gridExtra::grid.arrange(h3,d3)
+
+```
+
+There is no fundamental differnce in death event with respect to platelets, as both the density curves are nearly overlapped.
+
+
+**Time**
+```{r}
+gridExtra::grid.arrange(h4,d4)
+
+```
+More the follow-up period, chance of person of surviving the heath attack increase. 
+While even though, there are cases that, even after more than 200 days of follow up period, individual has died, but lower the follow up period(nearly about 50 days), lower the chances of surviving the heart attack. 
+
+### Boxplots of Explanatory Variables(2 variables)
+```{r}
+#boxplots of explanatory columns (2 variables)
+b1<-ggplot(data = df, mapping = aes(x = DEATH_EVENT_, y = age)) + 
+  geom_boxplot()
+
+b2<-ggplot(data = df, mapping = aes(x = DEATH_EVENT_, y = creatinine_phosphokinase)) + 
+  geom_boxplot()
+
+b3<-ggplot(data = df, mapping = aes(x = DEATH_EVENT_, y = ejection_fraction)) + 
+  geom_boxplot()
+
+b4<-ggplot(data = df, mapping = aes(x = DEATH_EVENT_, y = platelets)) + 
+  geom_boxplot()
+
+b5<-ggplot(data = df, mapping = aes(x = DEATH_EVENT_, y = serum_creatinine)) + 
+  geom_boxplot()
+
+b6<-ggplot(data = df, mapping = aes(x = DEATH_EVENT_, y = serum_sodium)) + 
+  geom_boxplot()
+
+b7<-ggplot(data = df, mapping = aes(x = DEATH_EVENT_, y = time)) + 
+  geom_boxplot()
+
+gridExtra::grid.arrange(b1,b2,b3,b4,b5,b6,b7)
+```
+
+This are the boxplots of each explanatory variable with respect to death event.
+
+* As discussed earlier, there are some outliers in the dataset. If we look at the Creatinine Phosphokinase and Serum Creatinine, there are lot of values which exceed the IQR of boxplots in both the case. (Person id died, person is alive).
+
+* However, we do not remove the ooutliers as mentioned earlier, sometimes removing the outliers, means diminish the trustworthiness, effectiveness of dataset.
+
+* Boxplot depict that age, time, ejection fraction strongly contribute to determine the death event, while serum sodium contribute little to determine the death event. 
+
+* Other variables do not impact the death event. 
+
+## Categorical Variables
+### Barplots of Categorical Variables with Frequency and Proportion (2 variate)
+
+
+**Anaemia, Diabetes, High blood Pressure**
+```{r}
+#barplots of catagorical variables (2 variavte plots)
+g1<-ggplot(data = df) + 
+  geom_bar(mapping = aes(x = anaemia_, fill = DEATH_EVENT_), position = "dodge")
+
+g2<-ggplot(data = df) + 
+  geom_bar(mapping = aes(x = anaemia_, fill = DEATH_EVENT_), position = "fill")
+
+g3<-ggplot(data = df) + 
+  geom_bar(mapping = aes(x = diabetes_, fill = DEATH_EVENT_), position = "dodge")
+
+g4<-ggplot(data = df) + 
+  geom_bar(mapping = aes(x = diabetes_, fill = DEATH_EVENT_), position = "fill")
+
+g5<-ggplot(data = df) + 
+  geom_bar(mapping = aes(x = high_blood_pressure_, fill = DEATH_EVENT_), position = "dodge")
+
+g6<-ggplot(data = df) + 
+  geom_bar(mapping = aes(x = high_blood_pressure_, fill = DEATH_EVENT_), position = "fill")
+
+g7<-ggplot(data = df) + 
+  geom_bar(mapping = aes(x = sex_, fill = DEATH_EVENT_), position = "dodge")
+
+g8<-ggplot(data = df) + 
+  geom_bar(mapping = aes(x = sex_, fill = DEATH_EVENT_), position = "fill")
+
+g9<-ggplot(data = df) + 
+  geom_bar(mapping = aes(x = smoking_, fill = DEATH_EVENT_), position = "dodge")
+
+g10<-ggplot(data = df) + 
+  geom_bar(mapping = aes(x = smoking_, fill = DEATH_EVENT_), position = "fill")
+
+gridExtra::grid.arrange(g1,g2,g3,g4,g5,g6)
+```
+
+* There are nearly 40 individuals who died has Anaemia, while 120 individuals survive the heart attack even though they were diagnosed with diabetes.
+
+* To determine the impactful variable, we shoud look at the proportion plot, in which, we can show that, does not matter, person has diabetes or not, as diabetes does not affect person's destiny.
+
+* What affect is high blood pressure and anaemia,
+As person who has hypertension and who is suffering through low level of hemoglobin is more likely to died in heart attack.
+
+* Nearly 12% more people died in heart attack who was suffering through anaemia and hypertention respectively. 
+
+
+**Sex, Smoking**
+```{r}
+gridExtra::grid.arrange(g7,g8,g9,g10)
+```
+
+* More height of bar in Male than female only display that, we have more male in our dataset. By looking at the proportion plots, we can say that, no matter person is male or female, probability of surviving the heart attack is the same.
+
+* We have some surprising fact here, smoker is little more likely to survive the heart attack than non-smoker.
+
+* However, if we had more records, then we might have different outputs.(about 3%)
+
+
+
+## Whole Dataset
+### Scattermatrix of Explanatory Variables with respect to death event.
+
+Blue colour = Alive,
+Red Colour = Dead.
+```{r}
+#Scatterplot matrix of df_explanatory (Multivariate)
+pairs(df_explanatory[,1:7], 
+      col=ifelse(df$DEATH_EVENT_=="Yes", 
+                 "red", 
+                 "blue"))
+
+```
+
+### Correlation Matrix of Dataset
+```{r}
+#correlation Matrix of df 
+corr<-cor(df[,1:13]) %>% round(3) 
+ggcorrplot(corr,
+           method="square",
+           outline.color = "black",
+           hc.order = TRUE,
+           type="lower",
+           lab=TRUE)
+
+
+```
+
+* Matrix shows the relationship of each variable with every other variable.
+Sex has strong positive relationship(45%) smoking. While death event has strong negative relationship(-53%) with follow-up time.
+
+* Same way, Surviving heart attack or not has no relation with sex and diabetes. It is somehow positively related to the age(25%) and level of serum creatinine in the blood(29%).
+
+* This matrix will help us, what variable we shoud take into the account, while doing multivariate analysis.
+
+
+### Multivariate Plot (Principle Component Analysis)
+```{r}
+
+#Multivariate Analysis
+data <- df[,1:12] 
+res.pca <- prcomp(data, scale = TRUE)
+fviz_pca_biplot(res.pca, col.ind = df$DEATH_EVENT_,
+                palette = "jco", geom = "point")
+```
+
+
+* Dim1 and Dim2 keep only 27% of total information contained within the data.
+* Variables which are shows positive relation are on the upper side, while nagatively correlated are at the down side of graph. 
+
+
+### Scatterplots (3 variate)
+```{r}
+#3 variavte plots (Scatterplots)
+s1 <- ggplot(data = df) + 
+  geom_point(mapping = aes(x = age, y = time, color = DEATH_EVENT_)) +
+  geom_smooth(
+    mapping = aes(x = age, y = time, color = DEATH_EVENT_),
+    show.legend = TRUE
+  )
+
+
+s2 <- ggplot(data = df) + 
+  geom_point(mapping = aes(x = platelets, y = ejection_fraction, color = DEATH_EVENT_)) + 
+  geom_smooth(
+    mapping = aes(x = platelets, y = ejection_fraction, color = DEATH_EVENT_),
+    show.legend = TRUE
+  )
+
+
+s3 <- ggplot(data = df) + 
+  geom_point(mapping = aes(x = serum_sodium, y = ejection_fraction, color = DEATH_EVENT_)) +
+  geom_smooth(
+    mapping = aes(x = serum_sodium, y = ejection_fraction, color = DEATH_EVENT_),
+    show.legend = TRUE
+  )
+
+s4 <- ggplot(data = df) + 
+  geom_point(mapping = aes(x = serum_sodium, y = time, color = DEATH_EVENT_)) +
+  geom_smooth(
+    mapping = aes(x = serum_sodium, y = time, color = DEATH_EVENT_),
+    show.legend = TRUE
+  )
+
+grid.arrange(s1,s2,s3,s4)
+```
+
+From above graph, there are some important conclusions.
+
+* **age~time** - People with less number of follow-up days died more than more number of follow-up days.
+decreasing Smoothed curve depicts that older the person, lesser the follow-up period - heart attack turns into death. Confidence interval is not even little overlapped, shows that, both variables together make strong impact to predict the death.   
+
+* **platelets~ejection_fraction** - People with lower number the platelets(Kiloplatelets/mL) has more probability to being dead than more number of platelets. Confidence interval of both smoothed curve is nearly overlapeed, which means that, both variables together has no impact on death event, however, considering seperately them, might be different result.
+
+* **serum_sodium~ejection_fraction** - As seen in both the smoothed curve, more the level of serum sodium(mEq/L) in blood, more the ejection fraction. Overlapped confidence interval concludes that they don't affect the outcome of heart attack combine. 
+
+* **serum_sodium~time** - Confidence Interval of both curve do not overlapped, means they can be used to predict the outcome. Smoothed curve for dead people in increasing depicts that if serum sodium is increasing with increasing of follow-up period, then person will die.
+
+
+# Methodology
+
+Prediction of heart failure through the use of Logistic Regression.
+
+**Logistic Regression**
+
+Logistic Regression Model can be written as 
+
+**pi = exp(link)/(1 + exp(link))**
+
+or
+
+**log(pi / (1 - pi)) = link**
+
+where 
+
+**link** or **linear predictor** = 𝛽0 + 𝛽1x1 + 𝛽2x2 + 𝛽3x3 + … + 𝛽𝑝x𝑝
+**pi** = success probability      
+
+**log(pi / (1 - pi))** = logit transformation
+
+**𝑂dd𝑠𝑥** = 𝑒(𝛽0 + 𝛽1𝑥1 + 𝛽2𝑥2 + … + 𝛽p𝑥p)
+
+**Confidence Interval** = pi (+-) Z(alpha/2, 1-alpha/2)*standard_error
+
+**Standard_Error** = sqrt(var(pi))
+
+**#Summary**
+
+* I will do logistic regression for the prediction of heart failure through series of terminology.
+
+* 1st, I'll find the important independent variables or feature variables with the help of stepwise search algorithm that will best fit the model.
+
+* 2nd, I'll convert the data into EVP format, where each row is the set of uniquely independent variabe.
+
+* 3rd, I'll do logistic regression with help of glm() function.
+
+* 4th, I'll check the residual deviance with the help of plot of standerdized pearson residual vs exlpanatory variable.
+
+* 5th, I'll check the goodness of fit.
+
+* 6th, I'll find the confidence interval of each record, and show the Confidence Interval of some records.
+
+* 7th, I'll check the null hypotheses of beta parameters.
+
+* 8th, I'll do odds ratio to conclude how much unit increased or decreased in each variable affects the death event.
+
+
+# Statistical Modelling
+## Model Fitting
+
+**#Stepwise Search Algorithm**
+
+* To select the feature variables or independent variables, I used the stepwise search algorithm, which gives me the best suitable model with lowest AIC (Alkaik's Information Criterion).
+  
+    ***AIC*** = -2log(L) + 2r,
+  
+  Where r = total number of parameters in the Model
+  
+* AIC is based on the deviance, but it penalizes for making the model more complicated. It’s intent is to prevent from including **irrelevant predictors**.
+
+**Stepwise Forward Selection**
+
+```{r}
+empty.mod <- glm(formula = DEATH_EVENT ~ 1, family =
+                   binomial(link = logit), data = subset (df, select = -c(high_blood_pressure_, DEATH_EVENT_)))
+full.mod <- glm(formula = DEATH_EVENT ~ ., family =
+                  binomial(link = logit), data = subset (df, select = -c(high_blood_pressure_,DEATH_EVENT_)))
+
+forward_selection <- step(object = empty.mod, 
+                          scope = list(upper = full.mod), 
+                          direction = "forward", k = 2, trace = TRUE)
+```
+
+**Forward Selection Summary**
+
+* Here is the summary of forward selection, in which it states that choosing the age, ejection fraction, serum creatinine, serum sodium and time will come out as best model with **AIC = 235.49** .
+
+```{R}
+summary(forward_selection)
+
+```
+* But, it is well known that, there are some variables which are important from our best of knowledge of the logical world, such as **anaemia** and **high blood pressure**.
+  
+* Ergo, I've decided to include high blood pressure and anaemia along with variables, i've chosen from forward selection algorithm.
+
+**#Model Evaluation**
+
+**Explanatory variable pattern (EVP) (aggregated) form**
+
+* EVP aggregated format has one row in the data set for each of the unique sets of independent variables (age + ejection_fraction + serum_creatinine + serum_sodium + time + high_blood_pressure + anaemia).
+
+```{r}
+w <- aggregate(formula = DEATH_EVENT ~ age + ejection_fraction + serum_creatinine + serum_sodium + time + high_blood_pressure + anaemia, 
+               data = df,
+               FUN = sum)
+
+n <- aggregate(formula = DEATH_EVENT ~ age + ejection_fraction + serum_creatinine + serum_sodium + time + high_blood_pressure + anaemia,
+               data = df,
+               FUN = length)
+
+w.n <- data.frame(w[,-c(8)],
+                  total_cases = n$DEATH_EVENT, 
+                  total_deaths = w$DEATH_EVENT,
+                  proportion = round(w$DEATH_EVENT/n$DEATH_EVENT,4))
+
+kbl(head(w.n)) %>%
+  kable_paper()
+```
+
+* There is not a single common record for our chosen set of independent variables. As we can see that, number of records is not reduced. (still 299 records).
+
+**#Logistic Regression Analysis**
+
+```{r}
+## Logistic Regression Analysis
+mod.fit <- glm(
+                formula = proportion ~ 1 + age + ejection_fraction + serum_creatinine + serum_sodium + time + high_blood_pressure + anaemia , 
+                family = binomial(link = logit), 
+                data = w.n
+              )
+summary(mod.fit)
+
+```
+
+**Estimated model for Heart Failure Prediction**
+
+**logit(π)** = 9.5 + (0.0425 * age) + (-0.0734 * ejection_fraction) + (0.6858 * serum_creatinine) + (-0.0644 * serum_sodium) + (-0.021 * time) + (-0.0568 * high_blood_pressure) + (-0.0143 * anaemia)
+
+
+## Resudial Analysis
+
+**age**
+```{r}
+# age
+stand.resid <- rstandard(model = mod.fit, 
+                         type = "pearson")
+plot(
+     x = w.n$age, 
+     y = stand.resid, 
+     ylim = c(min(-3, stand.resid), max(3, stand.resid)), 
+     xlab = "age",
+     ylab = "Standardized Pearson residuals"
+     )
+
+abline(
+       h = c(3, 2, 0, -2, -3), 
+       lty = 3, 
+       col = "blue"
+       )
+
+smooth.stand <- loess(
+                      formula = stand.resid ~ age,
+                      data = w.n
+                      )
+
+ord.age <- order(w.n$age)
+
+lines(
+      x = w.n$age[ord.age], 
+      y = predict(smooth.stand)[ord.age], 
+      lty = "solid", 
+      col = "red"
+      )
+
+```
+
+* Here is the standardized Pearson residual plot of age variable. There are only 4 residuals which are out of bound of value of absolute 2. There is also not any trend, which we can conclude by looking at the red curve. Hence, there is no need of transformation of age variable.
+
+**Ejection Fraction**
+```{r}
+# ejection_fraction
+stand.resid_e <- rstandard(model = mod.fit, 
+                         type = "pearson")
+plot(
+  x = w.n$ejection_fraction, 
+  y = stand.resid_e, 
+  ylim = c(min(-3, stand.resid_e), max(3, stand.resid_e)), 
+  xlab = "ejection_fraction",
+  ylab = "Standardized Pearson residuals"
+)
+
+abline(
+  h = c(3, 2, 0, -2, -3), 
+  lty = 3, 
+  col = "blue"
+)
+
+smooth.stand_e <- loess(
+  formula = stand.resid_e ~ ejection_fraction,
+  data = w.n
+)
+
+ord.ejection_fraction <- order(w.n$ejection_fraction)
+
+lines(
+  x = w.n$ejection_fraction[ord.ejection_fraction], 
+  y = predict(smooth.stand)[ord.ejection_fraction], 
+  lty = "solid", 
+  col = "red"
+)
+
+```
+
+* Here is the standardized Pearson residual plot of ejection_fraction variable. There are only 4 residuals exceeding the bound value of 2. No need of transformation, as there is not a trend.
+
+
+**Serum Sodium**
+```{r}
+# serum_sodium
+stand.resid_ss <- rstandard(model = mod.fit, 
+                           type = "pearson")
+plot(
+  x = w.n$serum_sodium, 
+  y = stand.resid_ss, 
+  ylim = c(min(-3, stand.resid_ss), max(3, stand.resid_ss)), 
+  xlab = "serum_sodium",
+  ylab = "Standardized Pearson residuals"
+)
+
+abline(
+  h = c(3, 2, 0, -2, -3), 
+  lty = 3, 
+  col = "blue"
+)
+
+smooth.stand_ss <- loess(
+  formula = stand.resid_ss ~ serum_sodium,
+  data = w.n
+)
+
+ord.serum_sodium <- order(w.n$serum_sodium)
+
+lines(
+  x = w.n$serum_sodium[ord.serum_sodium], 
+  y = predict(smooth.stand_ss)[ord.serum_sodium], 
+  lty = "solid", 
+  col = "red"
+)
+
+```
+
+* Here is the standardized Pearson residual plot of serum sodium variable. There are only 3 residuals which are out of bound of value of absolute 2. There is also not any trend, which we can conclude by looking at the red curve. Hence, there is no need of transformation of age variable.
+
+
+**Time**
+```{r}
+# time
+stand.resid_t <- rstandard(model = mod.fit, 
+                            type = "pearson")
+  plot(
+  x = w.n$time, 
+  y = stand.resid_t, 
+  ylim = c(min(-3, stand.resid_t), max(3, stand.resid_t)), 
+  xlab = "time",
+  ylab = "Standardized Pearson residuals"
+)
+
+abline(
+  h = c(3, 2, 0, -2, -3), 
+  lty = 3, 
+  col = "blue"
+)
+
+smooth.stand_t <- loess(
+  formula = stand.resid_t ~ serum_sodium,
+  data = w.n
+)
+
+ord.time <- order(w.n$time)
+
+lines(
+  x = w.n$time[ord.time], 
+  y = predict(smooth.stand_t)[ord.time], 
+  lty = "solid", 
+  col = "red"
+)
+
+```
+
+* Here is the standardized Pearson residual plot of time variable. There are only 4 residuals exceeding the bound value of 2. No need of transformation, as there is not a trend.
+
+
+## Responce Analysis
+```{r}
+
+# high blood pressure - frequency
+g1 <- ggplot(data = df) + 
+  geom_bar(mapping = aes(x = high_blood_pressure_, fill = DEATH_EVENT_), position = "dodge")
+
+# high blood pressure - proportion
+g2 <- ggplot(data = df) + 
+  geom_bar(mapping = aes(x = high_blood_pressure_, fill = DEATH_EVENT_), position = "fill")
+
+
+# Density plot of ejection fraction
+mu_ejection_fraction <- ddply(df, "DEATH_EVENT_", summarise, grp.mean=mean(ejection_fraction))
+
+g3 <- ggplot(df, aes(x = ejection_fraction, 
+                     color = DEATH_EVENT_,
+                     fill = DEATH_EVENT_
+                     )
+             ) +
+             geom_density(alpha = 0.4) +
+             geom_vline(
+                        data = mu_ejection_fraction, 
+                        aes( 
+                            xintercept = grp.mean, 
+                            color = DEATH_EVENT_
+                            ),
+                        linetype="dashed"
+                        ) 
+
+# density ploy of age
+mu_age <- ddply(df, "DEATH_EVENT_", summarise, grp.mean=mean(age))
+
+g4 <- ggplot(df, aes(x = age, 
+                     color = DEATH_EVENT_,
+                     fill = DEATH_EVENT_
+                     )
+             ) +
+     geom_density(alpha = 0.4) +
+     geom_vline(
+                data = mu_age, aes( 
+                                xintercept = grp.mean, 
+                                color = DEATH_EVENT_
+                                ),
+                linetype="dashed"
+                ) 
+
+gridExtra::grid.arrange(g1,g2,g3,g4)
+
+```
+
+* There are nearly 40 individuals who died has high blood pressure, while 65 individuals survive the heart attack even though they were diagnosed with high blood pressure.
+
+* To determine the impactness of variable, we shoud look at the proportion plot, in which, we can see that, hypertension affects the death, Nearly 12% more people died in heart attack who was suffering through hypertention.
+
+* Most of people have 40% of blood leaving from hearh at each contraction, there is relationship between ejection fraction and heart attack turns into death as while ejectin fraction shows low percentage, probability of death increase and vice versa.
+
+* mean ejection_fraction of death event is low 32% compare to mean ejection_fraction of survival (41%)      
+
+* From above graph, majority of population is aged near 70, while as the age increases, probability of heart attack turns into death in increases. 
+
+* mean age of death event is 65 years, while for survival is 59 years.
+
+
+## Goodness of fit
+
+* Residual measures examine how well a model fits an individual observation. GOF statistics evaluate the model for all observations at once.
+
+**Goodness of fit** = residual deviance / df
+
+* Model is more reasonable if goodness of fit value is more near to 1.
+
+```{r}
+GOF <- mod.fit$deviance / mod.fit$df.residual
+
+text_tbl <- data.frame(
+  Goodness_of_fit = c(
+                      "Our Model",
+                      "Good Fit",
+                      "Potential Problem",
+                      "Poor Fit" 
+                      ),
+  Values = (round(c(GOF,
+            1 + 1*sqrt(2/mod.fit$df.residual),
+            1 + 2*sqrt(2/mod.fit$df.residual),
+            1 + 3*sqrt(2/mod.fit$df.residual)
+            ), 
+          2)))
+
+
+kbl(text_tbl) %>%
+  kable_paper()
+
+```
+
+* Here, our value is 0.77, which is lower than 1. lower than the value of potential problem of fit and far lower than poor fit. 
+
+* Ergo, there is no problem in our model regard to fitness.
+
+## Confidence Interval
+
+**95% Wald Confidence Interval**
+
+
+```{r}
+## Confidence Intervals
+
+# Alpha for 95% Confidence Interval
+alpha <- 0.05
+
+# Linear Prediction Model with Link
+linear.pred_link <- predict(object = mod.fit, 
+                       type = "link", 
+                       se = TRUE)
+
+# Linear Prediction Model with type = responce for probability of success
+linear.pred_response <- predict(object = mod.fit, 
+                       type = "response", 
+                       se = TRUE)
+
+
+# CI For 1st Observation
+CI.lin.pred_1_lower <- linear.pred_link$fit[1] + qnorm(p = c(alpha/2))*linear.pred_link$se[1]
+CI.lin.pred_1_upper <- linear.pred_link$fit[1] + qnorm(p = c(1 - alpha/2))*linear.pred_link$se[1]
+
+CI.pi_1_lower <- exp(CI.lin.pred_1_lower)/(1+exp(CI.lin.pred_1_lower))
+CI.pi_1_upper <- exp(CI.lin.pred_1_upper)/(1+exp(CI.lin.pred_1_upper))
+
+
+# CI For 2nd Observation
+CI.lin.pred_2_lower <- linear.pred_link$fit[2] + qnorm(p = c(alpha/2))*linear.pred_link$se[2]
+CI.lin.pred_2_upper <- linear.pred_link$fit[2] + qnorm(p = c(1 - alpha/2))*linear.pred_link$se[2]
+
+CI.pi_2_lower <- exp(CI.lin.pred_2_lower)/(1+exp(CI.lin.pred_2_lower))
+CI.pi_2_upper <- exp(CI.lin.pred_2_upper)/(1+exp(CI.lin.pred_2_upper))
+
+
+# CI For 5th Observation
+CI.lin.pred_5_lower <- linear.pred_link$fit[5] + qnorm(p = c(alpha/2))*linear.pred_link$se[5]
+CI.lin.pred_5_upper <- linear.pred_link$fit[5] + qnorm(p = c(1 - alpha/2))*linear.pred_link$se[5]
+
+CI.pi_5_lower <- exp(CI.lin.pred_5_lower)/(1+exp(CI.lin.pred_5_lower))
+CI.pi_5_upper <- exp(CI.lin.pred_5_upper)/(1+exp(CI.lin.pred_5_upper))
+
+text_tbl <- data.frame(
+  index = c( 
+    "1st Record",
+    "2nd Record",
+    "5th Record" 
+    ),
+  
+  link_lower = (round(c(
+                        CI.lin.pred_1_lower,
+                        CI.lin.pred_2_lower,
+                        CI.lin.pred_5_lower
+                        ),
+                        2)
+                ),
+  link_value = (round(c(
+                        linear.pred_link$fit[1],
+                        linear.pred_link$fit[2],
+                        linear.pred_link$fit[5]
+                        ),
+                      2)
+                ),
+  link_upper = (round(c(
+                        CI.lin.pred_1_upper,
+                        CI.lin.pred_2_upper,
+                        CI.lin.pred_5_upper
+                        ),
+                      2)
+                ),
+  probability_lower = (round(c(
+                                CI.pi_1_lower,
+                                CI.pi_2_lower,
+                                CI.pi_5_lower
+                                ),
+                                2)
+                      ),
+  probability_value = (round(c(
+                            linear.pred_response$fit[1],
+                            linear.pred_response$fit[2],
+                            linear.pred_response$fit[5]
+                            ),
+                          2)
+                    ),
+  probability_upper = (round(c(
+                                CI.pi_1_upper,
+                                CI.pi_2_upper,
+                                CI.pi_5_upper
+                                ),
+                             2)
+                       )
+  )
+
+
+CI.lin.pred_lower <- linear.pred_link$fit + qnorm(p=c(alpha/2))*linear.pred_link$se
+
+CI.lin.pred_upper <- linear.pred_link$fit + qnorm(p = c(1 - alpha/2))*linear.pred_link$se
+
+CI.pi_lower <- exp(CI.lin.pred_lower)/(1+exp(CI.lin.pred_lower))
+CI.pi_upper <- exp(CI.lin.pred_upper)/(1+exp(CI.lin.pred_upper))
+
+
+Confidence_Interval <- data.frame(CI.lin.pred_lower,linear.pred_link$fit,CI.lin.pred_upper,CI.pi_lower,linear.pred_response$fit, CI.pi_upper) %>% round(3)
+
+#kbl(head(Confidence_Interval)) %>% kable_paper()
+
+
+kbl(text_tbl) %>%
+  kable_paper()
+```
+
+
+## Hypotheses Test
+
+**For General logistic Regression**
+
+𝐻0: logit(𝜋) = 𝛽0 + 𝛽1x1 + ⋯ + 𝛽𝑟-1x𝑟-1 + 𝛽𝑟+1x𝑟+1 + ⋯ + 𝛽𝑝x𝑝
+
+𝐻𝑎: logit(𝜋) = 𝛽0 + 𝛽1x1 + ⋯ + 𝛽𝑟x𝑟 + ⋯ + 𝛽𝑝x𝑝
+
+**For Heart Failure Logistic Regressoin**
+
+**𝐻0**: logit(𝜋) = 𝛽0 , In other words, 𝛽1 = 𝛽2 = 𝛽3= 𝛽4= 𝛽5= 𝛽6= 𝛽7 = 0
+
+**𝐻𝑎**: at least one beta value (𝛽r) ≠ 0.
+
+```{r}
+summary(mod.fit)
+
+```
+
+```{r}
+
+text_tbl <- data.frame(
+  name = c(
+    "H0",
+    "Ha",
+    "Z0",
+    "p-value",
+    "Decision",
+    "Interpretation"
+  ),
+  age = c(
+    "β1 = 0",
+    "β1 != 0",
+    "2.830",
+    "0.00465",
+    "Reject H0 because p-value is small",
+    "There is marginal evidence to indicate age has an effect on the probability of success given above variable are in the model"
+    ),
+  ejection_fraction = c(
+    "β2 = 0",
+    "β2 != 0",
+    "-4.651",
+    "3.30e-06",
+    "Reject H0 because p-value is small",
+    "There is sufficient evidence to indicate ejection_fraction has an effect on the probability of success given above variable are in the model"
+    ),
+  serum_creatinine = c(
+    "β3 = 0",
+    "β3 != 0",
+    "3.926",
+    "8.65e-05",
+    "Reject H0 because p-value is small",
+    "There is sufficient evidence to indicate serum-creatinine has an effect on the probability of success given above variable are in the model"
+    ),
+  serum_sodium = c(
+    "β4 = 0",
+    "β4 != 0",
+    "-1.673",
+    "0.09429",
+    "Do not reject H0 because p-value is little large than significant level of 0.05",
+    "There is not sufficient evidence to indicate serum_sodium has an effect on the probability of success given above variable are in the model"
+    ),
+  time = c(
+    "β5 = 0",
+    "β5 != 0",
+    "-7.075",
+    "1.49e-12",
+    "Reject H0 because p-value is small",
+    "There is sufficient evidence to indicate time has an effect on the probability of success given above variable are in the model"
+    ),
+  high_blood_pressure = c(
+    "β6 = 0",
+    "β6 != 0",
+    "-0.163",
+    "0.87072",
+    "Do not reject H0 because p-value is very large than significant level of 0.05",
+    "There is not sufficient evidence to indicate high_blood_pressure has an effect on the probability of success given above variable are in the model"
+    ),
+  anaemia = c(
+    "β7 = 0",
+    "β7 != 0",
+    "-0.042",
+    "0.96668",
+    "Do not reject H0 because p-value is very large than significant level of 0.05",
+    "There is not sufficient evidence to indicate anaemia has an effect on the probability of success given above variable are in the model"
+    )
+)
+
+kbl(text_tbl) %>%
+  kable_paper()
+
+
+
+```
+
+
+## Sensitivity Analysis
+
+**Odds Ratio**
+
+* It does not matter what the value of x is, the odds ratio remains the same for a c-unit increase.
+
+```{r}
+
+# Odds Ratio
+odd_age <- exp(10*mod.fit$coefficients[2])
+odd_ejection_fraction <- 1/exp(10*mod.fit$coefficients[3])
+odd_serum_creatinine <- exp(1*mod.fit$coefficients[4])
+odd_serum_sodium <- exp(10*mod.fit$coefficients[5])
+odd_time <- exp(10*mod.fit$coefficients[6])
+
+
+text_tbl <- data.frame(
+  Features = c(
+    "Age",
+    "Ejection Fraction",
+    "Serum Creatinine",
+    "Serum Sodium",
+    "Time"
+  ),
+  Unit = c(
+    "10 years",
+    "10 Percentage",
+    "1 mg/dL",
+    "10 mEq/L",
+    "10 Days"
+    ),
+  odds_ratio = c(
+    as.numeric(odd_age %>% round(3)),
+    as.numeric(odd_ejection_fraction %>% round(3)),
+    as.numeric(odd_serum_creatinine %>% round(3)),
+    as.numeric(odd_serum_sodium %>% round(3)),
+    as.numeric(odd_time %>% round(3))
+  ),
+  Interpretation = c(
+    "Estimated odds of Death changes by 1.530 times for every 10 year increases of the Patient",
+    "Estimated odds of death changes by 2.085 times for decreasing of every 10 percentage of blood leaving the heart at each contraction ",
+    "Estimated odds of death changes by 1.985 times for every 1 mg/dL of serum creatinine is increased in blood",
+    "Estimated odds of death changes by 0.525 times for every 10 mEq/L of serum sodium is increased in blood",
+    "Estimated odds of Death changes by 0.812 times for every 10 days increases in the follow-up period"
+  )
+)
+
+kbl(text_tbl) %>%
+  kable_paper()
+
+
+```
+
+
+# Critique & Limitations
+**#Strength**
+
+* Strength of our Model is it's extreme good value of Goodness of Fit. As we already know, model is good, if its value is more near to 1. In our case, value is 0.77, which is far better.
+
+* There was no trend in explanatory variables in residual analysis, hence transformation of variables was not required.
+
+**#Weakness or Limitation**
+
+* Primary weakness is that, dataset on which model is built on, is too limited in the size. Hence, we can not guarantee on our model, if it will predict success probability with accuracy or not.
+
+* We have not include any interaction of variable in logistic regression to predict the success probability or death_event probability. There might be different scenario if we had included some meaningful interaction.
+
+* Even though extreme good value of Goodness of Fit, there were some residuals outside the bond of value 2, if we would have eliminated the outliers, than these must be not the case.
+
+* I've used AIC to chose the feature variables, if I would have chose the BIC (Bayesian Information Criterion), than i would have definately smaller number of independent variables.
+
+
+# Summary & Conclusions
+
+* The aim of this report is to determine which factor contribute the most to mortality of individuals when he is diagnosed with CVDs, whether it is single factor such is high blood pressure or multiple factors such as having high blood pressure and age.
+
+* After compiling stepwise search algorithm and chose indpendent variables alogside some forced chosen independent variable,  our logistic regression model should be written as   
+
+* **logit(𝜋)** = 𝛽0 + (𝛽1 * age) + (𝛽2 * ejection_fraction) + (𝛽3 * serum_creatinine) + (𝛽4 * serum_sodium) + (𝛽5 * time) + (𝛽6 * high_blood_pressure) + (𝛽7 * anaemia) 
+
+where
+
+Intercept **𝛽0** = 9.5 ,
+
+Coefficient[age] **𝛽1** = 0.0425,
+
+Coefficient[ejection_fraction] **𝛽2** = -0.0734,
+
+Coefficient[serum_creatinine] **𝛽3** = 0.6858,
+
+Coefficient[serum_sodium] **𝛽4** = -0.0644,
+
+Coefficient[time] **𝛽5** = -0.021,
+
+Coefficient[high_blood_pressure] **𝛽6** = -0.0568,
+
+Coefficient[anaemia] **𝛽7** = -0.0143
+
+* Now, during the hypotheses test, we did not reject null hypotheses test for the beta value of the serum_sodium, high_blood_pressure and anaemia.
+
+Hence, our new logistic model will be,
+
+**logit(𝜋)** = 𝛽0 + (𝛽1 * age) + (𝛽2 * ejection_fraction) + (𝛽3 * serum_creatinine) + (𝛽5 * time)
+
+or
+
+**logit(𝜋)** = 9.5+ (0.0425 * age) + (-0.0734 * ejection_fraction) + (0.6858 * serum_creatinine) + (-0.021 * time)
+
+* In real world, we know that diabetes and smoking play the key role to decide the outcome of heart failure, but from the visualisation analysis in phase 1 - I found out these variables have no impact on deciding the death_event, which is completely out of imagination.
+
+* If we have more records, then there should be a chance that these variables have much impact on the death event. More the records, we can train the model more accurately and can reduce the bias of dataset.
+
+* As discuss earlier, there might be possible, for more records, more independent variables alognside their intercation gives us best model, then beta values will be different.
+
+* Age, ejection fraction, serum_creatinine have been emerged as important variable. 
+
+* As every 10 years increase, probability of death of person changed by 1.530 times.
+
+* As every 10 percentage of blood leaving the heart at each contraction is Decreasing, probability of death is changed by 2.085 times.
+
+* As every 1 mg/dL of serum_creatinine is increase in the blood, the probability of death changes by 1.985 times.
+
+* As every 10 days of follow-up period is increased, probability of death changes by 0.812 times. 
+
+
+# References
+Manual.[rdrr](https://rdrr.io/cran/naniar/man/miss_var_summary.html) *miss_var_summary: Summarise the missingness in each variable*
+
+Tutorial.[sthda](http://www.sthda.com/english/wiki/ggcorrplot-visualization-of-a-correlation-matrix-using-ggplot2) *ggcorrplot: Visualization of a correlation matrix using ggplot2*
+
+Article.[Plotting Scatterplot matrices in R](https://jtr13.github.io/spring19/Community_Contribution_Group16.html) *Plotting Scatterplot matrices in R* by Weijia Bao, Sixing Hao
+
+Tutorial.[R for Data Science](https://r4ds.had.co.nz/data-visualisation.html) *Data visualisation*
+
+Article.[sthda](http://www.sthda.com/english/articles/32-r-graphics-essentials/130-plot-multivariate-continuous-data/) *Plot Multivariate Continuous Data* by kassambara, 17/11/2017
+
+Tutorial.[sthda](http://www.sthda.com/english/wiki/ggplot2-density-plot-quick-start-guide-r-software-and-data-visualization) *ggplot2 density plot : Quick start guide - R software and data visualization*
+
+Manual.[Cran](https://cran.r-project.org/web/packages/kableExtra/vignettes/awesome_table_in_html.html) *Create Awesome HTML Table with knitr::kable and kableExtra* by Hao Zhu, 27/08/2020
+
+Class Lectures and Videos (Chapter 2 and Chapter 5)
